@@ -1,5 +1,5 @@
 ---
-- name: "格式化挂载磁盘"
+- name: "format mount disk"
   hosts: all
   vars:
     type: disk
@@ -18,7 +18,7 @@
         path: "/dev/{{ partation }}"
       register: disk_stat
       tags: fdisk
-    - name: "创建/dev/{{ disk }}分区"
+    - name: "create/dev/{{ disk }}Partition"
       when: not disk_stat.stat.exists
       parted:
         device: "/dev/{{ disk }}"
@@ -31,30 +31,30 @@
       tags: fdisk
     - name: "disk"
       debug:
-        msg: "即将格式化的磁盘分区是/dev/{{ partation }}"
+        msg: "The disk partition to be formatted is/dev/{{ partation }}"
       tags: fdisk
-    - name: "格式化/dev/{{ partation }}分区"
+    - name: "format/dev/{{ partation }}Partition"
       when: not disk_stat.stat.exists
       filesystem:
         dev: "/dev/{{ partation }}"
         force: yes
         fstype: xfs
       tags: fdisk
-    - name: 重新获取facter
+    - name: Reacquire facter
       setup:
         gather_subset:
           - '!all'
           - '!any'
           - hardware
       tags: fdisk
-    - name: 获取/dev/{{ partation }}的UUID
+    - name: Obtain/dev/{{ partation }}ofUUID
       set_fact:
         device_uuid: "{{ item.value }}"
       with_dict:
         - "{{ ansible_device_links.uuids }}"
       when: item.key == (partation)
       tags: fdisk
-    - name: "挂载/dev/{{ partation }}分区到{{ dir }}目录"
+    - name: "mount/dev/{{ partation }}partition to{{ dir }}Table of contents"
       mount:
         path: "{{ dir }}"
         src: "UUID={{device_uuid[0]}}"
@@ -62,7 +62,7 @@
         opts: defaults,noatime,nodiratime,pquota
         state: mounted
       tags: fdisk
-    - name: "创建etcd目录"
+    - name: "create etcd table of contents"
       file:
         path: "{{ item.line }}"
         owner: root
@@ -74,7 +74,7 @@
         - {line: "/var/lib/etcd"}
       when: inventory_hostname in groups['etcd']
       tags: bind_dir
-    - name: "绑定etcd数据目录到{{ dir }}目录"
+    - name: "to bind etcd data directory to{{ dir }}Table of contents"
       mount:
         path: "/var/lib/etcd"
         src: "{{ dir }}/containers/etcd"
@@ -83,7 +83,7 @@
         state: mounted
       when: inventory_hostname in groups['etcd']
       tags: bind_dir
-    - name: "创建worker目录"
+    - name: "create worker table of contents"
       file:
         path: "{{ item.line }}"
         owner: root
@@ -99,7 +99,7 @@
         - {line: "/var/log/pods"}
       when: (inventory_hostname in groups['master'] or inventory_hostname in groups['worker'])
       tags: bind_dir
-    - name: "绑定worker数据目录到{{ dir }}目录"
+    - name: "to bind worker data directory to{{ dir }}Table of contents"
       mount:
         path: "{{ item.path }}"
         src: "{{ item.src }}"
