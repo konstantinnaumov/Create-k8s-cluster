@@ -1,4 +1,4 @@
-## 支持的发型版
+## Supported hairstyles
 
 - CentOS/RHEL 7，8
 - Ubuntu 18.04，20.04，22.04
@@ -7,7 +7,7 @@
 
 
 
-## 支持组件
+## Support components
 
 - Core
   - [kubernetes](https://github.com/kubernetes/kubernetes)
@@ -26,58 +26,51 @@
 
 
 
-## 基础配置
+## Basic configuration
 
-### 安装Ansible
+### Install Ansible
 
 ```
 pip3 install ansible
 pip3 install netaddr -i  https://mirrors.ustc.edu.cn/pypi/web/simple
 ```
 
-- 如使用Python3，请在ansible.cfg的defaults配置下添加`interpreter_python = /usr/bin/python3`。
-- 控制节点和被控节点Python版本尽量保持一致，否则执行可能出现问题。
+- If you use Python3, please add `interpreter_python = /usr/bin/python3` under the defaults configuration of ansible.cfg.
+- Try to keep the Python version of the control node and the controlled node consistent, otherwise problems may occur in execution.
 
 
+### Modify inventory
 
-### 修改 inventory
+Please modify the corresponding resources according to the inventory template format
 
-请按照inventory模板格式修改对应资源
+- When haproxy and kube-apiserver are deployed on the same server, please ensure that the ports do not conflict.
 
-- 当haproxy和kube-apiserver部署在同一台服务器时，请确保端口不冲突。
+### Mount the data disk
 
-
-
-### 挂载数据盘
-
-如已经自行格式化并挂载目录，可以跳过此步骤。
+If you have already formatted and mounted the directory yourself, you can skip this step.
 
 ```
 ansible-playbook fdisk.yml -i inventory -e "disk=sdb dir=/data"
 ```
 
-如果是NVME的磁盘，请使用以下方式:
+If it is an NVME disk, please use the following method:
 
 ```
 ansible-playbook fdisk.yml -i inventory -e "disk=sdb dir=/data type=nvme"
 ```
-
-
-
 ⚠️：
 
-- 此脚本会格式化{{disk}}指定的硬盘，并挂载到{{dir}}目录。
-- 会将`/var/lib/etcd`、`/var/lib/containerd`、`/var/lib/kubelet`、`/var/log/pods`数据目录绑定到此数据盘`{{dir}}/containers/etcd`、`{{dir}}/containers/containerd`、`{{dir}}/containers/kubelet`、`{{dir}}/containers/pods`目录，以达到多个数据目录共用一个数据盘，而无需修改kubernetes相关数据目录。
+- This script will format the hard disk specified by {{disk}} and mount it to the {{dir}} directory.
+- Will bind `/var/lib/etcd`, `/var/lib/containerd`, `/var/lib/kubelet`, `/var/log/pods` data directories to this data disk`{{dir }}/containers/etcd`, `{{dir}}/containers/containerd`, `{{dir}}/containers/kubelet`, `{{dir}}/containers/pods` directories to reach multiple data The directory shares a data disk, without modifying the kubernetes-related data directory.
 
 
-
-如需不同目录挂载不同数据盘，可以使用以下命令单独挂载
+If you need to mount different data disks in different directories, you can use the following commands to mount them separately
 
 ```
 ansible-playbook fdisk.yml -i inventory -l master -e "disk=sdb dir=/var/lib/etcd" --skip-tags=bind_dir
 ```
 
-如已经格式化并挂载过数据盘，可以使用以下命令将数据目录绑定到数据盘
+If the data disk has been formatted and mounted, you can use the following command to bind the data directory to the data disk
 
 ```
 ansible-playbook fdisk.yml -i inventory -l master -e "disk=sdb dir=/data" -t bind_dir
@@ -85,48 +78,47 @@ ansible-playbook fdisk.yml -i inventory -l master -e "disk=sdb dir=/data" -t bin
 
 
 
-### 配置 group_vars
+### Configure group_vars
 
-编辑group_vars/all.yml文件，填入自己的配置。
+Edit the group_vars/all.yml file and fill in your own configuration.
 
-请注意：
+Please note:
 
-- 请尽量将etcd安装在独立的服务器上，不建议跟master安装在一起。数据盘尽量使用SSD盘。
-- Pod 和Service IP网段建议使用保留私有IP段，建议（Pod IP不与Service IP重复，也不要与主机IP段重复，同时也避免与docker0网卡的网段冲突。）：
-  - Pod 网段
-    - A类地址：10.0.0.0/8
-    - B类地址：172.16-31.0.0/12-16
-    - C类地址：192.168.0.0/16
-  - Service网段
-    - A类地址：10.0.0.0/16-24
-    - B类地址：172.16-31.0.0/16-24
-    - C类地址：192.168.0.0/16-24
+- Please try to install etcd on an independent server, it is not recommended to install it together with the master. Use SSD disks as much as possible for data disks.
+- The Pod and Service IP network segments are recommended to use reserved private IP segments. It is recommended (the Pod IP should not overlap with the Service IP, nor with the host IP segment, and also avoid conflicts with the network segment of the docker0 network card.):
+- Pod segment
+    - Class A address: 10.0.0.0/8
+    - Class B address: 172.16-31.0.0/12-16
+    - Class C address: 192.168.0.0/16
+  - Service network segment
+    - Class A address: 10.0.0.0/16-24
+    - Class B address: 172.16-31.0.0/16-24
+    - Class C address: 192.168.0.0/16-24
 
 
 
-## 部署集群
+## Deploy the cluster
 
-格式化挂载数据盘
+Format and mount the data disk
 
 ```
 ansible-playbook fdisk.yml -i inventory -e "disk=sdb dir=/data"
 ```
 
-部署集群
+deploy cluster
 
 ```
 ansible-playbook cluster.yml -i inventory
 ```
 
-如是公有云环境，使用公有云的负载均衡即可（需提前配置好负载均衡），无需安装haproxy和keepalived。
+If it is a public cloud environment, you can use the load balancing of the public cloud (the load balancing needs to be configured in advance), and there is no need to install haproxy and keepalived.
 
 ```
 ansible-playbook cluster.yml -i inventory --skip-tags=haproxy,keepalived
 ```
+- By default, the node will be initialized, and the cluster node will take the last two segments of the host name and the IP as the cluster node name.
 
-- 默认会对节点进行初始化操作，集群节点会取主机名最后两段和IP作为集群节点名称。
-
-如果想让master节点也进行调度，可以添加使用以下方式
+If you want the master node to also schedule, you can add the following methods
 
 ```
 ansible-playbook cluster.yml -i inventory --skip-tags=create_master_taint
@@ -134,31 +126,29 @@ ansible-playbook cluster.yml -i inventory --skip-tags=create_master_taint
 
 
 
-## 扩容节点
+## Expansion node
 
-### 扩容master节点
+### Expand the master node
 
-扩容时，建议注释inventory文件master组中旧服务器信息，仅保留扩容节点的信息。
+When expanding capacity, it is recommended to comment out the old server information in the master group of the inventory file, and only keep the information of the expanded node.
 
-格式化挂载数据盘
+Format and mount the data disk
 
 ```
 ansible-playbook fdisk.yml -i inventory -l ${SCALE_MASTER_IP} -e "disk=sdb dir=/data"
 ```
-
-执行生成节点证书
+Execute Generate Node Certificate
 
 ```
 ansible-playbook cluster.yml -i inventory -t cert
 ```
 
-执行节点初始化
+Perform node initialization
 
 ```
 ansible-playbook cluster.yml -i inventory -l ${SCALE_MASTER_IP} -t verify,init
 ```
-
-执行节点扩容
+Execute node expansion
 
 ```
 ansible-playbook cluster.yml -i inventory -l ${SCALE_MASTER_IP} -t master,containerd,worker --skip-tags=bootstrap,create_worker_label
@@ -166,29 +156,28 @@ ansible-playbook cluster.yml -i inventory -l ${SCALE_MASTER_IP} -t master,contai
 
 
 
-### 扩容worker节点
+### Expansion of worker nodes
 
-扩容时，建议注释inventory文件worker组中旧服务器信息，仅保留扩容节点的信息。
+When expanding capacity, it is recommended to comment out the old server information in the worker group in the inventory file, and only keep the expanded node information.
 
-格式化挂载数据盘
+Format and mount the data disk
 
 ```
 ansible-playbook fdisk.yml -i inventory -l ${SCALE_MASTER_IP} -e "disk=sdb dir=/data"
 ```
 
-执行生成节点证书
+Execute Generate Node Certificate
 
 ```
 ansible-playbook cluster.yml -i inventory -t cert
 ```
 
-执行节点初始化
+Perform node initialization
 
 ```
 ansible-playbook cluster.yml -i inventory -l ${SCALE_WORKER_IP} -t verify,init
 ```
-
-执行节点扩容
+Execute node expansion
 
 ```
 ansible-playbook cluster.yml -i inventory -l ${SCALE_WORKER_IP} -t containerd,worker --skip-tags=bootstrap,create_master_label
@@ -196,23 +185,23 @@ ansible-playbook cluster.yml -i inventory -l ${SCALE_WORKER_IP} -t containerd,wo
 
 
 
-## 替换集群证书
+## Replace the cluster certificate
 
-先备份并删除证书目录{{cert.dir}}，重新创建{{cert.dir}}，并将token、sa.pub、sa.key文件拷贝至新创建的{{cert.dir}}（这三个文件务必保留，不能更改），然后执行以下步骤重新生成证书并分发证书。
+First backup and delete the certificate directory {{cert.dir}}, recreate {{cert.dir}}, and copy the token, sa.pub, sa.key files to the newly created {{cert.dir}} (this The three files must be kept and cannot be changed), and then perform the following steps to regenerate the certificate and distribute the certificate.
 
 ```
 ansible-playbook cluster.yml -i inventory -t cert,dis_certs
 ```
 
-然后依次重启每个节点。
+Then restart each node in turn.
 
-重启etcd
+restart etcd
 
 ```
 ansible -i inventory etcd -m systemd -a "name=etcd state=restarted"
 ```
 
-验证etcd
+Verify etcd
 
 ```
 etcdctl endpoint health \
@@ -222,54 +211,46 @@ etcdctl endpoint health \
         --endpoints=https://172.16.90.101:2379,https://172.16.90.102:2379,https://172.16.90.103:2379
 ```
 
-逐个删除旧的kubelet证书
+Remove old kubelet certificates one by one
 
 ```
 ansible -i inventory -l master,worker -m shell -a "rm -rf /etc/kubernetes/pki/kubelet*"
 ```
 
-- `-l`参数更换为具体节点IP。
+- The `-l` parameter is replaced with the specific node IP.
 
-逐个重启节点
+Restart nodes one by one
 
 ```
 ansible-playbook cluster.yml -i inventory -l ${IP} -t restart_apiserver,restart_controller,restart_scheduler,restart_kubelet,restart_proxy,healthcheck
 ```
+- Services such as calico and metrics-server also use cluster certificates, please remember to update related certificates together.
+- The `-l` parameter is replaced with the specific node IP.
 
-- 如calico、metrics-server等服务也使用了集群证书，请记得一起更新相关证书。
--  `-l`参数更换为具体节点IP。
-
-重启网络插件
+Restart the network plugin
 
 ```
 kubectl get pod -n kube-system | grep -v NAME | grep cilium | awk '{print $1}' | xargs kubectl -n kube-system delete pod
 ```
--  更新证书可能会导致网络插件异常，建议重启。
--  示例为重启cilium插件命令，请根据不同网络插件自行替换。
+- Updating the certificate may cause the network plug-in to be abnormal, it is recommended to restart.
+- The example is the command to restart the cilium plug-in, please replace it according to different network plug-ins.
 
+## Upgrade kubernetes version
+Please edit group_vars/all.yml first, and modify kubernetes.version to the new version.
 
-
-## 升级kubernetes版本
-
-请先编辑group_vars/all.yml，修改kubernetes.version为新版本。
-
-安装kubernetes组件
+Install kubernetes components
 
 ```
 ansible-playbook cluster.yml -i inventory -t install_kubectl,install_master,install_worker
 ```
-
-更新配置文件
+update configuration file
 
 ```
 ansible-playbook cluster.yml -i inventory -t dis_master_config,dis_worker_config
 ```
-
-然后依次重启每个kubernetes组件。
+Then restart each kubernetes component in turn.
 
 ```
 ansible-playbook cluster.yml -i inventory -l ${IP} -t restart_apiserver,restart_controller,restart_scheduler,restart_kubelet,restart_proxy,healthcheck
 ```
-
-- `-l`参数更换为具体节点IP。
-
+- The `-l` parameter is replaced with the specific node IP.
